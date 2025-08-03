@@ -10,7 +10,8 @@ const corsOptions = {
   origin: [
     'http://localhost:5173', // Local development
     'https://your-frontend-app.vercel.app', // Production frontend URL
-    /^https:\/\/.*\.vercel\.app$/ // Any Vercel subdomain
+    /^https:\/\/.*\.vercel\.app$/, // Any Vercel subdomain
+    /^https:\/\/.*\.onrender\.com$/ // Any Render subdomain (for testing)
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -29,11 +30,25 @@ app.get('/', (req, res) => {
   });
 });
 
-// For Vercel serverless functions
-if (process.env.VERCEL) {
-  module.exports = app;
-} else {
-  app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    service: 'Digital Library API'
   });
-}
+});
+
+// For Render and other platforms
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running at http://0.0.0.0:${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Process terminated');
+  });
+});
