@@ -9,7 +9,7 @@ const port = process.env.PORT || 3000;
 const corsOptions = {
   origin: [
     'http://localhost:5173', // Local development
-    'https://your-frontend-app.vercel.app', // Production frontend URL
+    'https://vercel-frontend-lime-two.vercel.app', // Your actual Vercel frontend URL
     /^https:\/\/.*\.vercel\.app$/, // Any Vercel subdomain
     /^https:\/\/.*\.onrender\.com$/ // Any Render subdomain (for testing)
   ],
@@ -19,14 +19,30 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions)); 
-// Serve syllabus.json data at /syllabus
+
+// Add logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} from ${req.headers.origin || 'unknown'}`);
+  next();
+});
+
+// Serve syllabus.json data at /
 app.get('/', (req, res) => {
+  console.log('Syllabus data requested');
   const syllabusPath = path.join(__dirname, 'syllabus.json');
   fs.readFile(syllabusPath, 'utf8', (err, data) => {
     if (err) {
-      return res.status(500).json({ error: 'Unable to read syllabus.json' });
+      console.error('Error reading syllabus.json:', err);
+      return res.status(500).json({ error: 'Unable to read syllabus.json', details: err.message });
     }
-    res.json(JSON.parse(data));
+    try {
+      const jsonData = JSON.parse(data);
+      console.log('Syllabus data sent successfully');
+      res.json(jsonData);
+    } catch (parseErr) {
+      console.error('Error parsing JSON:', parseErr);
+      res.status(500).json({ error: 'Invalid JSON format', details: parseErr.message });
+    }
   });
 });
 
