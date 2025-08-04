@@ -5,6 +5,28 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// 🚀 Performance optimizations
+let syllabusCache = null; // Cache the JSON data in memory
+let cacheTime = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Load syllabus data into memory on startup
+const loadSyllabusData = () => {
+  console.log('📦 Loading syllabus data into memory...');
+  const syllabusPath = path.join(__dirname, 'syllabus.json');
+  try {
+    const data = fs.readFileSync(syllabusPath, 'utf8');
+    syllabusCache = JSON.parse(data);
+    cacheTime = Date.now();
+    console.log('✅ Syllabus data cached successfully');
+  } catch (error) {
+    console.error('❌ Error loading syllabus data:', error);
+  }
+};
+
+// Load data on startup
+loadSyllabusData();
+
 // CORS configuration for separate frontend deployment
 const corsOptions = {
   origin: [
@@ -26,24 +48,35 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve syllabus.json data at /
+// Serve syllabus.json data at / with caching
 app.get('/', (req, res) => {
-  console.log('Syllabus data requested');
-  const syllabusPath = path.join(__dirname, 'syllabus.json');
-  fs.readFile(syllabusPath, 'utf8', (err, data) => {
-    if (err) {
-      console.error('Error reading syllabus.json:', err);
-      return res.status(500).json({ error: 'Unable to read syllabus.json', details: err.message });
-    }
-    try {
-      const jsonData = JSON.parse(data);
-      console.log('Syllabus data sent successfully');
-      res.json(jsonData);
-    } catch (parseErr) {
-      console.error('Error parsing JSON:', parseErr);
-      res.status(500).json({ error: 'Invalid JSON format', details: parseErr.message });
-    }
-  });
+  console.log('📚 Syllabus data requested');
+  const start = Date.now();
+  
+  // Check if cache needs refresh
+  if (!syllabusCache || (Date.now() - cacheTime) > CACHE_DURATION) {
+    console.log('🔄 Refreshing syllabus cache...');
+    loadSyllabusData();
+  }
+  
+  if (syllabusCache) {
+    // Set cache headers for browser caching
+    res.set({
+      'Cache-Control': 'public, max-age=300', // 5 minutes browser cache
+      'ETag': `"${cacheTime}"`,
+      'Last-Modified': new Date(cacheTime).toUTCString()
+    });
+    
+    const duration = Date.now() - start;
+    console.log(`✅ Syllabus data sent in ${duration}ms (${Object.keys(syllabusCache).length} regulations)`);
+    res.json(syllabusCache);
+  } else {
+    console.error('❌ No syllabus data available');
+    res.status(500).json({ 
+      error: 'Syllabus data not available',
+      message: 'Please try again in a few moments'
+    });
+  }
 });
 
 // Health check endpoint for Render
